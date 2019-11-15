@@ -27,6 +27,20 @@ class Threads extends Thread {
     
                         break;
 
+                case 'SERVER_TCP':
+
+                    $socket = new Sockets();
+                    $socket->createServerTCP();
+
+                    break;
+
+                case 'CLIENT_TCP':
+
+                    $socket = new Sockets();
+                    $socket->createClientTCP();
+
+                    break;
+
                 default:
 
                     #criar socket para cliente
