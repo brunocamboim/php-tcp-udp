@@ -6,7 +6,7 @@ error_reporting(E_ALL);
 set_time_limit(0);
 ob_implicit_flush();
 
-$tasks = array("SOCKET_SERVER");
+$tasks = array("SERVER_UDP");
 
 # instancia as threads
 foreach ( $tasks as $i ) {

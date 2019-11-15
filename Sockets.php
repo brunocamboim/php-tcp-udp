@@ -10,7 +10,7 @@ class Sockets {
     function __construct($adress = null, $port = 29000) 
     {
         
-        $this->port = $porta;
+        $this->port = $port;
         $this->address = isset($adress) ? $adress : getHostByName(getHostName());
 
     }
@@ -94,30 +94,34 @@ class Sockets {
 
             clearstatcache();
             
-            $input = generateRandomString(100);
+            $input = Helper::generateRandomString(100);
 
             try{
+
                 for ($i = 0; $i < $pacotes; $i++) {
                     socket_sendto($sock, $input , strlen($input) , 0 , $server , $port);
                 }
                 
+                $recebidos = 0;
                 for ($i = 0; $i < $pacotes; $i++) {
 
                     if( socket_recv($sock, $reply, 1000, 0) !== FALSE ) {
-                        echo 'Recebido';
+                        echo "Recebido: $pacotes \n";
+                        $recebidos++;
                     }
 
                 }
 
+                if ($recebidos != $pacotes) throw new Exception("Não recebido alguns pacotes");
+
                 $pacotes *= 2;
+
             } catch (Exception $e) {
 
+                echo "ERRO\n $pacotes\n";
                 $pacotes = 1;
 
             }
-
-            sleep(10);
-
         }
     }
 

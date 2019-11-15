@@ -13,18 +13,25 @@ class Threads extends Thread {
 
             switch($this->arg) {
 
-                case 'SOCKET_SERVER':
+                case 'SERVER_UDP':
 
                     $socket = new Sockets();
-                    $socket->createSocket();
+                    $socket->createServerUDP();
 
                     break;
+
+                case 'CLIENT_UDP':
+
+                        $socket = new Sockets();
+                        $socket->createClientUDP();
+    
+                        break;
 
                 default:
 
                     #criar socket para cliente
-                    $socket = new Sockets($this->arg);
-                    $socket->createSocketClient();
+                    // $socket = new Sockets($this->arg);
+                    // $socket->createClientUDP();
 
                     break;
 

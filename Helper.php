@@ -16,7 +16,7 @@ class Helper {
 
     }
 
-    public function generateRandomString($length = 10): string
+    public static function generateRandomString($length = 10): string
     {
         $characters = '0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
         $charactersLength = strlen($characters);
