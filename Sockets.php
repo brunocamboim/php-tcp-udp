@@ -40,7 +40,7 @@ class Sockets {
             die("Erro ao criar o socket: [$errorcode] $errormsg \n");
         }
         
-        echo " Socket serverUDP criado! Meu server: $this->address - $this->port \n";
+        echo "Socket serverUDP criado! Meu server: $this->address - $this->port \n";
 
         if (!socket_bind($sock, $this->address, $this->port)) {
             $errorcode = socket_last_error();
@@ -101,7 +101,9 @@ class Sockets {
                 for ($i = 0; $i < $pacotes; $i++) {
                     socket_sendto($sock, $input , strlen($input) , 0 , $server , $port);
                 }
-                
+
+                sleep(1);
+
                 $recebidos = 0;
                 for ($i = 0; $i < $pacotes; $i++) {
 
@@ -134,7 +136,7 @@ class Sockets {
             die("Erro ao criar o socket: [$errorcode] $errormsg \n");
         }
         
-        echo " Socket serverTCP criado! Meu server: $this->address - $this->port \n";
+        echo "Socket serverTCP criado! Meu server: $this->address - $this->port \n";
 
         if (!socket_bind($sock, $this->address, $this->port)) {
             $errorcode = socket_last_error();
@@ -143,26 +145,41 @@ class Sockets {
             die("Erro ao fazer o bind do ip e porta: [$errorcode] $errormsg \n");
         }
 
-        socket_listen($sock);
+        socket_listen($sock, 10);
+        
+        echo "Socket listening... \n";
 
         $client = socket_accept($sock);
 
         do {
 
-            clearstatcache();
+            try {
 
-            unset($buf);
+                clearstatcache();
 
-            $input = socket_recv($client, $buf, sizeof($buf), 0);
+                if (socket_recv ( $client , $buf , 2045 , 0 ) === FALSE)
+                {
+                    throw new Exception("Nao recebido!");  
+                }
 
-            var_dump("Recebi $input $buf");
+                $buf = explode(";", $buf);
+                $ACK = $buf[0] . "\n";
 
-            socket_send($client, $input, sizeof($input), 0);
+                if( ! socket_send ( $client , $ACK, strlen($ACK) , 0))
+                {
+                    throw new Exception("Nao enviado!");    
+                }
 
-            sleep(3);
+            } catch (Exception $e) {
+                
+                echo $e->getMessage();
+                break;
+
+            }
         
         } while (true);
         
+        socket_close($client);
         socket_close($sock);
 
     }
@@ -180,44 +197,77 @@ class Sockets {
         }
 
         echo "Socket do cliente TCP $this->address criado! \n";
-
+        
         if ( socket_connect($sock, $this->address, $this->port) === false ) {
             die("Nao foi possivel criar a conexão de controle com o socket! \n");
         }
 
+        socket_set_nonblock( $sock );
+
+        $sequencia = 0;
         $pacotes = 1;
         while(1) {
 
             try {
 
-                clearstatcache();
-                
-                $input = Helper::generateRandomString(100);
+                $last_send = array();
 
-                for ( $i = 0; $i < $pacotes; $i++) {
+                for ($i = 0; $i < $pacotes; $i++) {
 
-                    $length = socket_send($sock, $input, sizeof($input), 0);
+                    $message = "ACK:".($sequencia).";\n" . Helper::generateRandomString(10) . "";
+                    if( ! socket_send ( $sock , $message , strlen($message) , 0))
+                    {
+                        throw new Exception("Nao enviado!");    
+                    }
 
+                    $last_send[] = $sequencia;
+                    $sequencia++;
                 }
 
-                $receive = socket_recv($sock, $buf, sizeof($buf), 0);
+                echo "Enviados...\n";
+                sleep(2);
 
-                var_dump("Recebi de volta $buf $receive");
-                
-                $pacotes *= 2;
+                if (socket_recv ( $sock , $buf , 9000 , 0 ) === FALSE){
 
-                sleep(5);
+                    throw new Exception("Nao recebido!");
 
+                } else {
+
+                    $buf = explode("\n", $buf);
+                    array_pop($buf);
+
+                    var_dump($buf);
+
+                    if (sizeof($buf) != sizeof($last_send)) {
+
+                        $buf = array_map(function($buf){
+                            $value = explode(":", $buf);
+                            return $value[1];
+                        }, $buf);
+                        
+                        foreach ($last_send as $key => $value) {
+                            if (!in_array($value, $buf)) {
+                                $sequencia = $value;
+                                $pacotes = 1;
+                                break;
+                            }
+                        }
+                    } else {
+                        $pacotes *= 2;
+                    }                    
+                }
+            
             } catch (Exception $e) {
-
                 
                 echo "ERRO\n $pacotes\n";
                 $pacotes = 1;
-
-                exit;
+                $sequencia = $sequencia - (sizeof($pacotes)); 
 
             }
         }
+
+        socket_close($sock);
+
     }
 
 }
