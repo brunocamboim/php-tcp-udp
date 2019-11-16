@@ -1,21 +1,10 @@
 <?php
 
-require_once 'Threads.php';
+require_once 'Sockets.php';
 
 error_reporting(E_ALL);
 set_time_limit(0);
 ob_implicit_flush();
 
-$tasks = array("SERVER_UDP");
-
-# instancia as threads
-foreach ( $tasks as $i ) {
-    $stack[] = new Threads($i);
-}
-
-# inicia as threads
-foreach ( $stack as $t ) {
-    $t->start();
-}
-
-exit;
+$sockets = new Sockets();
+$sockets->createServerUDP();
