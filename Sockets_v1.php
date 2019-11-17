@@ -202,7 +202,7 @@ class Sockets {
 
             die("Nao foi possivel criar o socket do cliente ($this->address) : [$errorcode] $errormsg \n");
         }
-        
+
         socket_set_option( $sock, SOL_SOCKET, SO_RCVTIMEO, array("sec" => 1,"usec" => 0) );
 
         echo "Socket do cliente TCP $this->address criado! \n";
@@ -214,10 +214,12 @@ class Sockets {
         // socket_set_nonblock( $sock );
 
         $sequencia = 0;
-        $pacotes = 1;
+        $pacotes = $controlador = 1;
         while(1) {
 
             try {
+
+                $controlador--;
 
                 $last_send = array();
 
@@ -236,35 +238,42 @@ class Sockets {
                 echo "Enviados...\n";
                 sleep(2);
 
-                if (socket_recv ( $sock , $buf , 9000 , 0 ) === FALSE){
+                $error = false;
+                for ($i = 0; $i < $pacotes; $i++) {
 
-                    throw new Exception("Nao recebido!");
+                    $lenght = 5 + strlen($controlador++);
 
-                } else {
+                    if (socket_recv ( $sock , $buf , $lenght, 0 ) === FALSE){
 
-                    $buf = explode("\n", $buf);
-                    array_pop($buf);
+                        throw new Exception("Nao recebido!");
+    
+                    } else {
+    
+                        $buf = explode("\n", $buf);
+                        array_pop($buf);
 
-                    var_dump($buf);
-
-                    if (sizeof($buf) != sizeof($last_send)) {
-
+                        var_dump($buf);
+                        
                         $buf = array_map(function($buf){
                             $value = explode(":", $buf);
                             return $value[1];
                         }, $buf);
                         
-                        foreach ($last_send as $key => $value) {
-                            if (!in_array($value, $buf)) {
-                                $sequencia = $value;
-                                $pacotes = 1;
-                                break;
-                            }
+                        if (!in_array($buf[0], $last_send)) {
+                            $sequencia = $buf[0];
+                            $pacotes = 1;
+                            $error = true;
+                            break;
                         }
-                    } else {
-                        $pacotes *= 2;
-                    }                    
+
+                                        
+                    }
+
                 }
+                
+                if (!$error) $pacotes *= 2;
+
+                $controlador = $pacotes;
             
             } catch (Exception $e) {
                 
