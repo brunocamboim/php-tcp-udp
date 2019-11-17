@@ -55,7 +55,7 @@ class Sockets {
 
             $r = socket_recvfrom($sock, $buf, 2045, 0, $remote_ip, $remote_port);
 
-            echo "Server recebeu requisicao de: $remote_ip : $remote_port -- $buf \n" ;
+            // echo "Server recebeu requisicao de: $remote_ip : $remote_port -- $buf \n" ;
 
             $return = "Recebido!";
 
@@ -85,7 +85,9 @@ class Sockets {
             die("Nao foi possivel criar o socket do cliente ($this->address) : [$errorcode] $errormsg \n");
         }
 
-        socket_set_nonblock( $sock );
+        // socket_set_nonblock( $sock );
+
+        socket_set_option( $sock, SOL_SOCKET, SO_RCVTIMEO, array("sec" => 1,"usec" => 0) );
 
         echo "Socket do cliente UDP $this->address criado! \n";
 
@@ -102,26 +104,31 @@ class Sockets {
                     socket_sendto($sock, $input , strlen($input) , 0 , $server , $port);
                 }
 
-                sleep(1);
-
                 $recebidos = 0;
                 for ($i = 0; $i < $pacotes; $i++) {
 
                     if( socket_recv($sock, $reply, 1000, 0) !== FALSE ) {
-                        echo "Recebido: $pacotes \n";
+                        // echo "Recebido: $pacotes \n";
                         $recebidos++;
+                    } else {
+                        throw new Exception("Nao recebido alguns pacotes");
                     }
 
                 }
 
-                if ($recebidos != $pacotes) throw new Exception("Não recebido alguns pacotes");
+                if ($recebidos != $pacotes) throw new Exception("Nao recebido alguns pacotes");
+
+                echo "Recebidos... Nr pacotes: $pacotes \n";
+                sleep(1);
 
                 $pacotes *= 2;
 
             } catch (Exception $e) {
 
-                echo "ERRO\n $pacotes\n";
+                echo $e->getMessage()."... Nr. pacotes: $pacotes\n\n";
                 $pacotes = 1;
+
+                sleep(3);
 
             }
         }
@@ -202,7 +209,7 @@ class Sockets {
             die("Nao foi possivel criar a conexão de controle com o socket! \n");
         }
 
-        socket_set_nonblock( $sock );
+        // socket_set_nonblock( $sock );
 
         $sequencia = 0;
         $pacotes = 1;
@@ -235,8 +242,6 @@ class Sockets {
 
                     $buf = explode("\n", $buf);
                     array_pop($buf);
-
-                    var_dump($buf);
 
                     if (sizeof($buf) != sizeof($last_send)) {
 
