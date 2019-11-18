@@ -7,7 +7,7 @@ class Sockets {
     private $port;
     private $address;
 
-    function __construct($adress = null, $port = 29000) 
+    function __construct($adress = "192.168.0.19", $port = 29000) 
     {
         
         $this->port = $port;
@@ -128,7 +128,7 @@ class Sockets {
                 echo $e->getMessage()."... Nr. pacotes: $pacotes\n\n";
                 $pacotes = 1;
 
-                sleep(3);
+                sleep(1);
 
             }
         }
