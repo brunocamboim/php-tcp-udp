@@ -2,6 +2,8 @@
 
 require_once 'Helper.php';
 
+error_reporting(E_ERROR | E_PARSE);
+
 class Sockets {
     
     private $port;
@@ -51,20 +53,18 @@ class Sockets {
 
         do {
 
+            unset($buf);
+
             clearstatcache();
 
             $r = socket_recvfrom($sock, $buf, 2045, 0, $remote_ip, $remote_port);
 
-            // echo "Server recebeu requisicao de: $remote_ip : $remote_port -- $buf \n" ;
-
-            $return = "Recebido!";
-
-            if( !socket_sendto($sock, $return, strlen($return) , 0 , $remote_ip , $remote_port) )
+            $buf = explode(";", $buf);
+            $ACK = $buf[0] . "\n";
+            
+            if( !socket_sendto($sock, $ACK, strlen($ACK) , 0 , $remote_ip , $remote_port) )
             {
-                $errorcode = socket_last_error();
-                $errormsg = socket_strerror($errorcode);
-                
-                echo "Erro ao mandar de volta para o cliente!\n";
+                throw new Exception("Nao enviado!"); 
             }
         
         } while (true);
@@ -87,46 +87,91 @@ class Sockets {
 
         // socket_set_nonblock( $sock );
 
-        socket_set_option( $sock, SOL_SOCKET, SO_RCVTIMEO, array("sec" => 1,"usec" => 0) );
+        socket_set_option( $sock, SOL_SOCKET, SO_RCVTIMEO, array("sec" => 1, "usec" => 0) );
 
         echo "Socket do cliente UDP $this->address criado! \n";
 
         $pacotes = 1;
+        $sequencia = 0;
+        $pacotes_nao_enviados = array();
+        $had_loss = false;
         while(1) {
 
             clearstatcache();
-            
-            $input = Helper::generateRandomString(100);
 
             try{
 
+                if (!empty($pacotes_nao_enviados)) {
+                    foreach ($pacotes_nao_enviados as $value) {
+                        $message = "ACK:".($value).";\n" . Helper::generateRandomString(100) . "";
+                        socket_sendto($sock, $message , strlen($message) , 0 , $server , $port);
+                    }
+
+                    for ($i = 0; $i < sizeof($pacotes_nao_enviados); $i++) {
+                        if( socket_recv($sock, $buf, 1000, 0) === FALSE ) {
+                            $pacotes_nao_enviados = array();
+                            throw new Exception("Erro ao reenviar pacote!");
+                        }
+                    }
+
+                    sleep(1);
+                    
+                    $pacotes_nao_enviados = array();
+                    echo "Pacotes nao enviados anteriormente, agora foram enviados \n";
+                }
+
+                $last_send = array();
                 for ($i = 0; $i < $pacotes; $i++) {
-                    socket_sendto($sock, $input , strlen($input) , 0 , $server , $port);
+                    $message = "ACK:".($sequencia).";\n" . Helper::generateRandomString(100) . "";
+                    socket_sendto($sock, $message , strlen($message) , 0 , $server , $port);
+
+                    $last_send[] = $sequencia++;
                 }
 
                 $recebidos = 0;
                 for ($i = 0; $i < $pacotes; $i++) {
 
-                    if( socket_recv($sock, $reply, 1000, 0) !== FALSE ) {
-                        // echo "Recebido: $pacotes \n";
-                        $recebidos++;
+                    if ( socket_recv($sock, $buf, 1000, 0) === FALSE ) break;
+
+                    $buf = explode("\n", $buf);
+                    array_pop($buf);
+
+                    $buf = array_map(function($buf){
+                        $value = explode(":", $buf);
+                        return $value[1];
+                    }, $buf);
+
+                    $key = array_search($buf[0], $last_send);
+                    if ($key === false) {
+                        $sequencia = $buf[0];
+                        $pacotes = (int) $pacotes / 2;
+                        break;
                     } else {
-                        throw new Exception("Nao recebido alguns pacotes");
+                        $teste = $last_send[$key];
+                        unset($last_send[$key]);
                     }
+
+                    $recebidos++;
 
                 }
 
-                if ($recebidos != $pacotes) throw new Exception("Nao recebido alguns pacotes");
+                if ($recebidos != $pacotes) {
+                    foreach ($last_send as $value) {
+                        $pacotes_nao_enviados[] = $value; 
+                    }
+                    $pacotes = (int) $pacotes / 2;
+                    $had_loss = true;
+                    echo "Ocorreu uma perda ao enviar $pacotes pacotes, sera reenviado os perdidos\n";     
+                } else {     
+                    echo "Pacotes $pacotes enviados e ACK ate " . ($sequencia - 1) ."\n";               
+                    $pacotes = $had_loss ? $pacotes + 1 : $pacotes *= 2;
+                }
 
-                echo "Recebidos... Nr pacotes: $pacotes \n";
                 sleep(1);
-
-                $pacotes *= 2;
 
             } catch (Exception $e) {
 
-                echo $e->getMessage()."... Nr. pacotes: $pacotes\n\n";
-                $pacotes = 1;
+                $pacotes = (int) $pacotes / 2;
 
                 sleep(1);
 
@@ -203,7 +248,7 @@ class Sockets {
             die("Nao foi possivel criar o socket do cliente ($this->address) : [$errorcode] $errormsg \n");
         }
         
-        socket_set_option( $sock, SOL_SOCKET, SO_RCVTIMEO, array("sec" => 1,"usec" => 0) );
+        socket_set_option( $sock, SOL_SOCKET, SO_RCVTIMEO, array("sec" => 2,"usec" => 0) );
 
         echo "Socket do cliente TCP $this->address criado! \n";
         
@@ -215,6 +260,7 @@ class Sockets {
 
         $sequencia = 0;
         $pacotes = 1;
+        $had_loss = false;
         while(1) {
 
             try {
@@ -223,18 +269,17 @@ class Sockets {
 
                 for ($i = 0; $i < $pacotes; $i++) {
 
-                    $message = "ACK:".($sequencia).";\n" . Helper::generateRandomString(10) . "";
+                    $message = "ACK:".($sequencia).";\n" 
+                        . Helper::generateRandomString(100);
                     if( ! socket_send ( $sock , $message , strlen($message) , 0))
                     {
                         throw new Exception("Nao enviado!");    
                     }
 
-                    $last_send[] = $sequencia;
-                    $sequencia++;
+                    $last_send[] = $sequencia++;
                 }
 
-                echo "Enviados...\n";
-                sleep(2);
+                sleep(1);
 
                 if (socket_recv ( $sock , $buf , 9000 , 0 ) === FALSE){
 
@@ -244,8 +289,6 @@ class Sockets {
 
                     $buf = explode("\n", $buf);
                     array_pop($buf);
-
-                    var_dump($buf);
 
                     if (sizeof($buf) != sizeof($last_send)) {
 
@@ -257,19 +300,22 @@ class Sockets {
                         foreach ($last_send as $key => $value) {
                             if (!in_array($value, $buf)) {
                                 $sequencia = $value;
-                                $pacotes = 1;
+                                $had_loss = true;
+                                $pacotes = floor($pacotes / 2);
+                                echo "Pacotes perdidos, sera reiniciado a partir do ACK $sequencia e enviara $pacotes pacotes!\n";
                                 break;
                             }
                         }
                     } else {
-                        $pacotes *= 2;
+                        echo "Recebido $pacotes pacotes e sequencia ate " .($sequencia - 1) . " \n";
+                        $pacotes = $had_loss ? $pacotes + 1 : $pacotes * 2;
                     }                    
                 }
             
             } catch (Exception $e) {
                 
-                echo "ERRO\n $pacotes\n";
-                $pacotes = 1;
+                echo "Erro ao enviar $pacotes pacotes!\n";
+                $pacotes = floor($pacotes / 2);
                 $sequencia = $sequencia - (sizeof($pacotes)); 
 
             }
