@@ -2,14 +2,14 @@
 
 require_once 'Helper.php';
 
-error_reporting(E_ERROR | E_PARSE);
+// error_reporting(E_ERROR | E_PARSE);
 
 class Sockets {
     
     private $port;
     private $address;
 
-    function __construct($adress = "192.168.0.19", $port = 29000) 
+    function __construct($adress = "127.0.0.1", $port = 29000) 
     {
         
         $this->port = $port;
@@ -87,7 +87,7 @@ class Sockets {
 
         // socket_set_nonblock( $sock );
 
-        socket_set_option( $sock, SOL_SOCKET, SO_RCVTIMEO, array("sec" => 1, "usec" => 0) );
+        socket_set_option( $sock, 0, SO_RCVTIMEO, array("sec" => 0, "usec" => 200) );
 
         echo "Socket do cliente UDP $this->address criado! \n";
 
