@@ -2,14 +2,14 @@
 
 require_once 'Helper.php';
 
-// error_reporting(E_ERROR | E_PARSE);
+error_reporting(E_ERROR | E_PARSE);
 
 class Sockets {
     
     private $port;
     private $address;
 
-    function __construct($adress = "127.0.0.1", $port = 29000) 
+    function __construct($adress = null, $port = 29000) 
     {
         
         $this->port = $port;
@@ -87,7 +87,7 @@ class Sockets {
 
         // socket_set_nonblock( $sock );
 
-        socket_set_option( $sock, 0, SO_RCVTIMEO, array("sec" => 0, "usec" => 200) );
+        socket_set_option( $sock, SOL_SOCKET, SO_RCVTIMEO, array("sec" => 1, "usec" => 0) );
 
         echo "Socket do cliente UDP $this->address criado! \n";
 
@@ -248,7 +248,7 @@ class Sockets {
             die("Nao foi possivel criar o socket do cliente ($this->address) : [$errorcode] $errormsg \n");
         }
         
-        socket_set_option( $sock, SOL_SOCKET, SO_RCVTIMEO, array("sec" => 2,"usec" => 0) );
+        // socket_set_option( $sock, SOL_SOCKET, SO_RCVTIMEO, array("sec" => 2,"usec" => 0) );
 
         echo "Socket do cliente TCP $this->address criado! \n";
         
@@ -268,10 +268,11 @@ class Sockets {
                 $last_send = array();
 
                 for ($i = 0; $i < $pacotes; $i++) {
-
+                    
                     $message = "ACK:".($sequencia).";\n" 
                         . Helper::generateRandomString(100);
-                    if( ! socket_send ( $sock , $message , strlen($message) , 0))
+                    
+                        if( ! socket_send ( $sock , $message , strlen($message) , 0))
                     {
                         throw new Exception("Nao enviado!");    
                     }
@@ -279,9 +280,9 @@ class Sockets {
                     $last_send[] = $sequencia++;
                 }
 
-                sleep(1);
+                usleep(500);
 
-                if (socket_recv ( $sock , $buf , 9000 , 0 ) === FALSE){
+                if (socket_recv ( $sock , $buf , 150000 , 0 ) === FALSE){
 
                     throw new Exception("Nao recebido!");
 
@@ -311,6 +312,8 @@ class Sockets {
                         $pacotes = $had_loss ? $pacotes + 1 : $pacotes * 2;
                     }                    
                 }
+
+                sleep(1);
             
             } catch (Exception $e) {
                 
